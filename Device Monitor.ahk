@@ -11,12 +11,16 @@ try {
     ExitApp
 }
 
-; Set initial tray icon tooltip
-A_IconTip := "Total Connection Events: 0`nTotal Disconnection Events: 0"
-
 ; Initialize counters
 totalConnections := 0
 totalDisconnections := 0
+lastConnectionTime := "N/A"
+lastDisconnectionTime := "N/A"
+
+; Function to set tray icon tooltip
+SetIconTip() {
+    A_IconTip := "Connection Events: " . totalConnections . "`n    Last: " . lastConnectionTime . "`nDisconnection Events: " . totalDisconnections . "`n    Last: " . lastDisconnectionTime
+}
 
 ; Event type constants
 DEVICE_ARRIVAL := 2
@@ -26,7 +30,7 @@ DEVICE_REMOVAL := 3
 isProcessing := false
 
 CheckDeviceEvents() {
-    global totalConnections, totalDisconnections, isProcessing
+    global totalConnections, totalDisconnections, isProcessing, lastConnectionTime, lastDisconnectionTime
 
     if (isProcessing) {
         return  ; Prevent concurrent processing
@@ -54,21 +58,41 @@ CheckDeviceEvents() {
     if (foundEventTypes.Has(DEVICE_ARRIVAL)) {
         ; Device connected/inserted
         totalConnections++
-        TrayTip("A device has been connected.", "Device Connected", 1)
+        lastConnectionTime := FormatTime(A_Now, "yyyy-MMM-dd hh:mm:ss tt")
+        TrayTip("A device has been connected.`nTime: " lastConnectionTime, "Device Connected", 1)
     }
 
     if (foundEventTypes.Has(DEVICE_REMOVAL)) {
         ; Device disconnected/removed
         totalDisconnections++
-        TrayTip("A device has been disconnected.", "Device Disconnected", 1)
+        lastDisconnectionTime := FormatTime(A_Now, "yyyy-MMM-dd hh:mm:ss tt")
+        TrayTip("A device has been disconnected.`nTime: " lastDisconnectionTime, "Device Disconnected", 1)
     }
 
     ; Update tray icon tooltip with totals if any events were found
     if (foundEventTypes.Count > 0) {
-        A_IconTip := "Total Connection Events: " . totalConnections . "`nTotal Disconnection Events: " . totalDisconnections
+        SetIconTip()
     }
 
     isProcessing := false
+}
+
+; Set initial tray icon tooltip
+SetIconTip()
+
+; Create tray menu
+A_TrayMenu.Add()
+A_TrayMenu.Add("Clear Counters", ClearCounters)
+A_TrayMenu.Add()
+
+; Function to clear connection/disconnection counters
+ClearCounters(*) {
+    global totalConnections, totalDisconnections, lastConnectionTime, lastDisconnectionTime
+    totalConnections := 0
+    totalDisconnections := 0
+    lastConnectionTime := "N/A"
+    lastDisconnectionTime := "N/A"
+    SetIconTip()
 }
 
 ; Set up event monitoring
