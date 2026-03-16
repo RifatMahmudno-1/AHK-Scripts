@@ -39,14 +39,19 @@ CheckDeviceEvents() {
         isProcessing := true
     }
 
-    foundEventTypes := Map()
+    newConnections := 0
+    newDisconnections := 0
 
     loop {
         try {
             ; Check for pending WMI events
-            eventType := events.NextEvent(10).EventType  ; 10ms timeout
-            if (eventType = DEVICE_ARRIVAL || eventType = DEVICE_REMOVAL) {
-                foundEventTypes[eventType] := true
+            eventType := events.NextEvent(0).EventType  ; only past and just-in-time events, no timeout
+            if (eventType = DEVICE_ARRIVAL) {
+                lastConnectionTime := FormatTime(A_Now, "yyyy-MMM-dd hh:mm:ss tt")
+                newConnections++
+            } else if (eventType = DEVICE_REMOVAL) {
+                lastDisconnectionTime := FormatTime(A_Now, "yyyy-MMM-dd hh:mm:ss tt")
+                newDisconnections++
             }
         }
         catch {
@@ -55,22 +60,25 @@ CheckDeviceEvents() {
     }
 
     ; Handle different event types - only show one notification per type
-    if (foundEventTypes.Has(DEVICE_ARRIVAL)) {
-        ; Device connected/inserted
-        totalConnections++
-        lastConnectionTime := FormatTime(A_Now, "yyyy-MMM-dd hh:mm:ss tt")
-        TrayTip("A device has been connected.`nTime: " lastConnectionTime, "Device Connected", 1)
+    ; Both connected and disconnected
+    if (newConnections > 0 && newDisconnections > 0) {
+        totalConnections += newConnections
+        totalDisconnections += newDisconnections
+        TrayTip(newConnections " device(s) connected. Last Time: " lastConnectionTime "`n" newDisconnections " device(s) disconnected. Last Time: " lastDisconnectionTime, "Devices Changed", 1)
     }
-
-    if (foundEventTypes.Has(DEVICE_REMOVAL)) {
-        ; Device disconnected/removed
-        totalDisconnections++
-        lastDisconnectionTime := FormatTime(A_Now, "yyyy-MMM-dd hh:mm:ss tt")
-        TrayTip("A device has been disconnected.`nTime: " lastDisconnectionTime, "Device Disconnected", 1)
+    ; Only device connected/inserted
+    else if (newConnections > 0) {
+        totalConnections += newConnections
+        TrayTip(newConnections " device(s) connected.`nLast Time: " lastConnectionTime, "Device Connected", 1)
+    }
+    ; Only device disconnected/removed
+    else if (newDisconnections > 0) {
+        totalDisconnections += newDisconnections
+        TrayTip(newDisconnections " device(s) disconnected.`nLast Time: " lastDisconnectionTime, "Device Disconnected", 1)
     }
 
     ; Update tray icon tooltip with totals if any events were found
-    if (foundEventTypes.Count > 0) {
+    if (newConnections > 0 || newDisconnections > 0) {
         SetIconTip()
     }
 
@@ -96,7 +104,7 @@ ClearCounters(*) {
 }
 
 ; Set up event monitoring
-SetTimer(CheckDeviceEvents, 1000)
+SetTimer(CheckDeviceEvents, 3000)
 
 ; Add cleanup handler for WMI resources
 Cleanup(*) {
